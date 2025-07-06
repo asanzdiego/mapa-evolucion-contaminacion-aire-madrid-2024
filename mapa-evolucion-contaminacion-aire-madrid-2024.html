@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Evolución mensual de NO2 en Madrid (2001-2024)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: sans-serif;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #map {
+      width: 100vw;
+      height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 1;
+    }
+
+    h2 {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.90);
+      border-radius: 18px;
+      box-shadow: 0 1px 10px rgba(0, 0, 0, 0.10);
+      z-index: 10;
+      padding: 14px 36px 10px 36px;
+      margin: 0;
+      font-weight: 700;
+      font-size: 2em;
+      text-align: center;
+      width: auto;
+      max-width: 95vw;
+      display: inline-block;
+      backdrop-filter: blur(2px);
+    }
+
+    #leyenda {
+      position: fixed;
+      top: 130px;
+      right: 32px;
+      z-index: 11;
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 12px;
+      padding: 12px 18px;
+      font-size: 1em;
+      color: #333;
+      box-shadow: 0 2px 7px rgba(0, 0, 0, 0.11);
+      max-width: 260px;
+      min-width: 140px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      opacity: 1;
+      backdrop-filter: blur(1.5px);
+    }
+
+    .leyenda-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 2px;
+    }
+
+    .swatch {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      margin-right: 8px;
+      vertical-align: middle;
+      border: 1px solid #ccc;
+    }
+
+    #caja-controles {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 30px;
+      width: 95vw;
+      min-width: 260px;
+      max-width: 1400px;
+      z-index: 15;
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 16px;
+      box-shadow: 0 2px 18px rgba(0, 0, 0, 0.13);
+      padding: 18px 28px 10px 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      backdrop-filter: blur(2px);
+    }
+
+    #controles {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 32px;
+      flex-wrap: wrap;
+      background: none;
+      pointer-events: auto;
+      margin-bottom: 0;
+    }
+
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1 1 180px;
+      min-width: 130px;
+      margin: 0 8px;
+    }
+
+    .slider-group label {
+      margin-bottom: 4px;
+      font-weight: bold;
+    }
+
+    .slider-group input[type="range"] {
+      width: 150px;
+    }
+
+    #mesSlider {
+      width: 250px !important;
+    }
+
+    .slider-group span {
+      margin-top: 2px;
+    }
+
+    #playPauseDiv {
+      flex: 0 1 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #playPause {
+      font-size: 1.1em;
+      cursor: pointer;
+      padding: 4px 18px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      background: #eee;
+      transition: background 0.2s;
+      margin-left: 10px;
+    }
+
+    #playPause:hover {
+      background: #ddd;
+    }
+
+    .leaflet-popup-content {
+      font-size: 1em;
+    }
+
+    .indicacion {
+      width: 100%;
+      text-align: center;
+      margin: 0;
+      color: #666;
+      font-size: 1.07em;
+      background: none;
+      padding: 9px 0 0 0;
+      box-shadow: none;
+      backdrop-filter: none;
+      pointer-events: none;
+      position: static;
+      z-index: auto;
+    }
+
+    @media (max-width: 600px) {
+      #caja-controles {
+        padding: 10px 4vw 7px 4vw;
+        font-size: 0.97em;
+      }
+
+      #leyenda {
+        top: 84px;
+        right: 2vw;
+        max-width: 90vw;
+        min-width: 80px;
+      }
+
+      .slider-group input[type="range"] {
+        width: 100px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Evolución mensual de NO<sub>2</sub> en Madrid (2001-2024)</h2>
+  <div id="leyenda"></div>
+  <div id="map"></div>
+  <div id="caja-controles">
+    <div id="controles">
+      <div class="slider-group">
+        <label for="mesSlider">Mes:</label>
+        <input type="range" id="mesSlider" min="0" max="0" value="0">
+        <span id="mesActual"></span>
+      </div>
+      <div class="slider-group">
+        <label for="velSlider">Velocidad (ms/frame):</label>
+        <input type="range" min="50" max="300" step="50" value="150" id="velSlider">
+        <span id="velValue">150</span>
+      </div>
+      <div class="slider-group">
+        <label for="corteSlider">Corte inicial:</label>
+        <input type="range" min="0" max="40" step="1" value="10" id="corteSlider">
+        <span id="corteValue">10</span>
+      </div>
+      <div class="slider-group">
+        <label for="saltoSlider">Salto leyenda:</label>
+        <input type="range" min="1" max="40" step="1" value="15" id="saltoSlider">
+        <span id="saltoValue">15</span>
+      </div>
+      <div id="playPauseDiv">
+        <button id="playPause">⏸️ Pausa</button>
+      </div>
+    </div>
+    <div class="indicacion">
+      Usa los sliders o el botón ▶️/⏸️ para controlar la animación.<br>
+      <b>NOTA:</b> Los círculos más grandes son de meses más antiguos, los pequeños de los más recientes.<br>
+      <b>TIP:</b> Ajusta los cortes y saltos de color para personalizar la leyenda y los colores del mapa.
+    </div>
+  </div>
+  <script src="mapa-evolucion-contaminacion-aire-madrid-2024.js"></script>
+  <script>
+    // -------------------------------
+    //  Parámetros globales y estado
+    // -------------------------------
+    let corteInicial = 10;       // Corte inicial para el rango de colores
+    let saltoLeyenda = 15;      // Salto entre los cortes de la leyenda
+    let meses = [];             // Lista de meses disponibles en los datos
+    let autoPlay = true;        // Estado de animación automática
+    let interval = null;        // Intervalo de animación
+    let intervalDuration = 150; // Velocidad de animación en ms
+    let currentLayer = null;    // Capa actual de Leaflet en el mapa
+
+    // -------------------------------
+    //  Inicializa el mapa Leaflet
+    // -------------------------------
+    let map = L.map('map').setView([40.42, -3.7], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // -----------------------------------------------------------------
+    //  Función: Devuelve el color correspondiente para un valor dado
+    // -----------------------------------------------------------------
+    function valorAColor(valor) {
+      // Calcula los puntos de corte dinámicamente según sliders
+      const cortes = [
+        corteInicial,
+        corteInicial + saltoLeyenda,
+        corteInicial + 2 * saltoLeyenda,
+        corteInicial + 3 * saltoLeyenda,
+        corteInicial + 4 * saltoLeyenda
+      ];
+      if (valor <= cortes[0]) return '#1976d2';
+      if (valor <= cortes[1]) return '#43a047';
+      if (valor <= cortes[2]) return '#ffeb3b';
+      if (valor <= cortes[3]) return '#ff9800';
+      if (valor <= cortes[4]) return '#e53935';
+      return '#8e24aa';
+    }
+
+    // -----------------------------------------------------------------
+    //  Función: Dibuja la leyenda de colores (arriba a la derecha)
+    // -----------------------------------------------------------------
+    function actualizarLeyenda() {
+      const leyendaDiv = document.getElementById('leyenda');
+      const colores = ['#1976d2', '#43a047', '#ffeb3b', '#ff9800', '#e53935', '#8e24aa'];
+      const cortes = [
+        corteInicial,
+        corteInicial + saltoLeyenda,
+        corteInicial + 2 * saltoLeyenda,
+        corteInicial + 3 * saltoLeyenda,
+        corteInicial + 4 * saltoLeyenda
+      ];
+      // Etiquetas con los cortes actuales
+      const etiquetas = [
+        `Azul ≤ ${cortes[0]}`,
+        `Verde ≤ ${cortes[1]}`,
+        `Amarillo ≤ ${cortes[2]}`,
+        `Naranja ≤ ${cortes[3]}`,
+        `Rojo ≤ ${cortes[4]}`,
+        `Morado > ${cortes[4]}`
+      ];
+      // Construcción HTML de la leyenda
+      leyendaDiv.innerHTML = colores.map((color, i) =>
+        `<div class="leyenda-item"><span class="swatch" style="background:${color}"></span> ${etiquetas[i]}</div>`
+      ).join('');
+    }
+
+    // -----------------------------------------------------------------
+    //  Función: Inicia la animación automática de los meses
+    // -----------------------------------------------------------------
+    function startAnimation(slider, meses, showMes) {
+      clearInterval(interval);
+      interval = setInterval(() => {
+        slider.value = (+slider.value + 1) % meses.length;
+        showMes(+slider.value);
+      }, intervalDuration);
+      document.getElementById('playPause').innerText = '⏸️ Pausa';
+      autoPlay = true;
+    }
+
+    // -----------------------------------------------------------------
+    //  Función: Detiene la animación automática
+    // -----------------------------------------------------------------
+    function stopAnimation() {
+      clearInterval(interval);
+      document.getElementById('playPause').innerText = '▶️ Play';
+      autoPlay = false;
+    }
+
+    // -----------------------------------------------------------------
+    //  Función: Actualiza la velocidad de la animación (ms por frame)
+    // -----------------------------------------------------------------
+    function updateIntervalDuration(newDuration, slider, meses, showMes) {
+      intervalDuration = newDuration;
+      if (autoPlay) startAnimation(slider, meses, showMes);
+    }
+
+    // -----------------------------------------------------------------
+    //  Función principal que configura controles y pinta todo
+    // -----------------------------------------------------------------
+    window.onload = function () {
+      // Agrupa los datos por mes-año
+      let porMes = {};
+      datos.forEach(d => {
+        if (!porMes[d.FECHA]) porMes[d.FECHA] = [];
+        porMes[d.FECHA].push(d);
+      });
+      meses = Object.keys(porMes).sort();
+
+      // Configura el slider de meses según número de meses disponibles
+      let mesSlider = document.getElementById('mesSlider');
+      mesSlider.max = meses.length - 1;
+      mesSlider.value = 0;
+
+      let mesActualSpan = document.getElementById('mesActual');
+
+      // ---------------------------------------------------
+      // Función para mostrar el mes seleccionado (y anteriores)
+      // ---------------------------------------------------
+      function showMes(idx) {
+        // Selecciona los últimos 12 meses hasta el mes seleccionado
+        let startIdx = Math.max(0, idx - 11);
+        let mesesUltimos12 = meses.slice(startIdx, idx + 1);
+
+        // Muestra el mes actual debajo del slider
+        mesActualSpan.innerHTML = `${meses[idx]}`;
+
+        // Borra la capa anterior si existe
+        if (currentLayer) map.removeLayer(currentLayer);
+
+        // Ajusta tamaño de los círculos según antigüedad del mes
+        let radioMax = 20;
+        let radioMin = 7;
+        let n = mesesUltimos12.length;
+        let radios = [];
+        for (let i = 0; i < n; i++) {
+          radios.push(radioMax - ((radioMax - radioMin) * i / (n - 1)));
+        }
+
+        // Dibuja los círculos de todos los meses seleccionados
+        let allCircles = [];
+        mesesUltimos12.forEach((mes, i) => {
+          let puntos = porMes[mes].map(d =>
+            L.circleMarker([d.LATITUD, d.LONGITUD], {
+              radius: radios[i],
+              color: valorAColor(d.VALOR),
+              fillColor: valorAColor(d.VALOR),
+              fillOpacity: 0.1 + 0.1 * (1 - i / (n - 1)), // Más translúcido el círculo más grande
+              weight: 2
+            }).bindPopup(
+              `<b>Valor:</b> ${d.VALOR}<br><b>Fecha:</b> ${d.FECHA}<br><b>Mes:</b> ${mes}`
+            )
+          );
+          allCircles = allCircles.concat(puntos);
+        });
+        // Añade los círculos al mapa
+        currentLayer = L.layerGroup(allCircles).addTo(map);
+      }
+
+      // ----------------------
+      // Eventos de los sliders
+      // ----------------------
+
+      // Slider de meses
+      mesSlider.addEventListener('input', e => {
+        showMes(+mesSlider.value);
+      });
+
+      // Botón Play/Pausa
+      document.getElementById('playPause').addEventListener('click', function () {
+        if (autoPlay) stopAnimation();
+        else startAnimation(mesSlider, meses, showMes);
+      });
+
+      // Slider de velocidad
+      let velSlider = document.getElementById('velSlider');
+      let velValue = document.getElementById('velValue');
+      velSlider.addEventListener('input', function () {
+        velValue.textContent = velSlider.value;
+        updateIntervalDuration(Number(velSlider.value), mesSlider, meses, showMes);
+      });
+
+      // Slider de corte inicial
+      let corteSlider = document.getElementById('corteSlider');
+      let corteValue = document.getElementById('corteValue');
+      corteSlider.addEventListener('input', function () {
+        corteInicial = Number(corteSlider.value);
+        corteValue.textContent = corteInicial;
+        actualizarLeyenda();                      // Actualiza la leyenda de colores
+        showMes(+mesSlider.value);                // Redibuja los datos con los nuevos cortes
+      });
+
+      // Slider de salto leyenda
+      let saltoSlider = document.getElementById('saltoSlider');
+      let saltoValue = document.getElementById('saltoValue');
+      saltoSlider.addEventListener('input', function () {
+        saltoLeyenda = Number(saltoSlider.value);
+        saltoValue.textContent = saltoLeyenda;
+        actualizarLeyenda();                      // Actualiza la leyenda de colores
+        showMes(+mesSlider.value);                // Redibuja los datos con los nuevos cortes
+      });
+
+      // -----------------------------------
+      // Inicialización de la interfaz visual
+      // -----------------------------------
+      actualizarLeyenda();                        // Pinta la leyenda de colores al cargar
+      showMes(0);                                 // Muestra el primer mes al cargar
+      startAnimation(mesSlider, meses, showMes);  // Inicia la animación automática
+    }
+  </script>
+</body>
+
+</html>
